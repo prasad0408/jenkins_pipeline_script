@@ -1,0 +1,41 @@
+pipeline{
+    agent any
+    tools{
+        maven 'mvn-3.8.1'
+    }
+    stages{
+        stage('Checkout'){
+            steps{
+               checkout([$class: 'GitSCM', branches: [[name: '*/Release_0.17']], extensions: [], userRemoteConfigs: [[credentialsId: 'git', url: 'https://gitlab.com/4reysn/mvnrepo.git']]]) 
+            }
+        }
+        stage('Build'){
+            steps{
+                sh 'mvn clean package -f pom.xml'
+            }
+        }
+        stage('Nexus-Repo'){
+            steps{
+                nexusArtifactUploader artifacts: [[artifactId: 'tiatan', classifier: '', file: 'target/Release_0.17.war', type: 'war']], credentialsId: 'nexus-repo', groupId: 'com.devops', nexusUrl: '34.123.187.134:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'maven-snapshots', version: '1.0-SNAPSHOT'
+            }
+        }
+        stage('PARAM-JOB'){
+            steps{
+                build job: 'PARAM-JOB', parameters: [string(name: 'branch', value: 'Release_0.15')]
+            }
+        }
+        stage ('Approve for Deployment') {
+           steps {
+           echo "Taking approval from DEV Manager for QA Deployment"
+           timeout(time: 7, unit: 'DAYS') {
+            input message: 'Do you want to deploy?', submitter: 'satya'
+        }
+      }
+    }
+        stage('DEPLOY'){
+            steps{
+                deploy adapters: [tomcat9(credentialsId: 'tomcat9', path: '', url: 'http://34.72.229.27:8090')], contextPath: null, war: '**/Release_0.17.war'
+            }
+        }
+    }
+}
