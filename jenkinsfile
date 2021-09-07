@@ -1,3 +1,4 @@
+//pipeline script for jenkinsfile to add into pieline script from SCM
 pipeline{
     agent any
         tools{
