@@ -1,0 +1,74 @@
+pipeline{
+    agent any
+        tools{
+            maven 'Maven'
+        }
+        stages{
+            stage('Checkout-master'){
+                steps{
+                    git 'https://github.com/prasad0408/maven_project.git'
+                }
+            }
+            stage('Build-master'){
+                steps{
+                    sh 'mvn package -f pom.xml'
+                }
+            }
+            stage('deployment'){
+                steps{
+                    deploy adapters: [tomcat9(credentialsId: 'tomcat-9', path: '', url: 'http://34.133.233.8:8090/')], contextPath: null, war: 'target/safeway.war'
+                }
+            }
+            stage('approval to move war to nexus'){
+                steps{
+                echo "Taking approval from Manager for artifacts to NEXUSREPO"
+           timeout(time: 7, unit: 'DAYS'){
+               input message: 'Do you want to move war to NEXUS REPO?', submitter: 'prasad'
+             }
+            }
+            }
+            stage('moving war to nexus repo'){
+                steps{
+                    nexusArtifactUploader artifacts: [[artifactId: 'safeway', classifier: '', file: 'target/safeway.war', type: 'war']], credentialsId: 'nexus', groupId: 'com.gspann', nexusUrl: '34.133.233.8:8081/', nexusVersion: 'nexus3', protocol: 'http', repository: 'maven-snapshots', version: '1.0-SNAPSHOT'
+                }
+            }
+            
+  // branch checkout from master  to Release.0.16
+            stage('Checkout - Release.0.16'){
+                steps{
+                    checkout([$class: 'GitSCM', branches: [[name: '*/Release.0.16']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/prasad0408/maven_project.git']]])
+                }
+            }
+            stage('Build - Maven'){
+                steps{
+                    sh 'mvn clean package -f pom.xml'
+                }
+            }
+            stage('req approval to move war to nexus'){
+                steps{
+                echo "Taking approval from Manager for artifacts to NEXUSREPO"
+           timeout(time: 7, unit: 'DAYS'){
+               input message: 'Do you want to move war to NEXUS REPO?', submitter: 'admin'
+             }    
+                }
+            }
+            stage('moving war to nexus repository'){
+                steps{
+                    nexusArtifactUploader artifacts: [[artifactId: 'zomato', classifier: '', file: 'target/zomato.war', type: 'war']], credentialsId: 'nexus', groupId: 'com.gspann', nexusUrl: '34.133.233.8:8081/', nexusVersion: 'nexus3', protocol: 'http', repository: 'maven-snapshots', version: '1.0-SNAPSHOT'
+                }
+            }
+            stage('approval to deploy on tomcat'){
+                steps{
+                echo "Taking approval from manager for deploying war to tomcat"
+           timeout(time: 5, unit: 'DAYS'){
+               input message: 'Do you want to deploy war to tomcat appication ?', submitter: 'admin'
+           }
+                }
+            }
+            stage('deploying war file'){
+                steps{
+                     deploy adapters: [tomcat9(credentialsId: 'tomcat-9', path: '', url: 'http://34.133.233.8:8090/')], contextPath: null, war: 'target/zomato.war'
+                }
+            }
+        }
+    }
